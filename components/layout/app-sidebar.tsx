@@ -11,6 +11,7 @@ import {
 } from "@/components/ui/sidebar"
 import Image from "next/image"
 import Link from "next/link"
+import { ThemeToggle } from "../ui/themetoggle"
 
 export function AppSidebar() {
     return (
@@ -35,7 +36,9 @@ export function AppSidebar() {
 
                 <SidebarGroup />
             </SidebarContent>
-            <SidebarFooter />
+            <SidebarFooter >
+                <ThemeToggle />
+            </SidebarFooter>
         </Sidebar>
     )
 }
