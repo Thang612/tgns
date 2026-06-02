@@ -16,72 +16,33 @@ const CreateImageHouse = () => {
         setLoading(true)
 
         try {
-            const formData = new FormData()
-            formData.append("url", url)
-
-            // 1. Gọi Webhook của bạn
             const response = await axios.post(
-                "https://n8n-test.thegioinhasang.com/webhook/c1f0ad86-b9c1-44c2-8d2b-c36a09036a3f",
-                formData,
+                "https://n8n-test.thegioinhasang.com/webhook/56d4bb69-10e4-4c4a-bc51-4ee7ac1bafec",
                 {
-                    headers: { "Content-Type": "multipart/form-data" },
-                }
-            )
-
-            const imageData = response.data?.[0]?.image || []
-            const contentData = response.data?.[1] || null
-
-            if (!contentData || imageData.length === 0) {
-                console.error("Không tìm thấy dữ liệu ảnh hoặc nội dung từ Webhook")
-                setLoading(false)
-                return
-            }
-
-            // Tạo chuỗi prompt từ dữ liệu mới nhận về (tránh dùng state chưa cập nhật)
-            const prompt = `${contentData.tieude} ${contentData.thongtin} ${contentData.noidung} Dựa vào các hình ảnh và nội dung bên trên Lọc những ý chính và tiêu biểu sắp xếp các hình vào một banner tổng hợp nội dung Kèm theo CTA call 09xxxxxxxxx để khách hàng liên hệ.`
-            console.log("Prompt for image generation:", prompt)
-
-            // 2. Xử lý ảnh đầu tiên từ webhook sang dạng File/Blob để gửi cho OpenAI
-            // Giả định: imageData[0].data chứa chuỗi Base64 của ảnh hoặc URL ảnh.
-            // Dưới đây là cách xử lý nếu đó là một chuỗi Base64 sạch (không kèm data:image/png;base64,):
-            const base64Response = await fetch(`data:image/png;base64,${imageData[0].image}`)
-            const imageBlob = await base64Response.blob()
-
-            // 3. Khởi tạo FormData bắt buộc cho OpenAI Edits
-            const openAiFormData = new FormData()
-            openAiFormData.append("model", "gpt-image-2") // Phải là dall-e-2
-            openAiFormData.append("image", imageBlob, "input_image.png") // Gửi file ảnh vật lý kèm tên file .png
-            openAiFormData.append("prompt", prompt)
-            openAiFormData.append("n", "1")
-            openAiFormData.append("size", "1024x1024")
-
-            // 4. Gọi OpenAI API bằng multipart/form-data
-            const imageResponse = await axios.post(
-                'https://api.openai.com/v1/images/edits',
-                openAiFormData,
+                    url,
+                },
                 {
                     headers: {
-                        'Authorization': `Bearer ${process.env.NEXT_PUBLIC_OPENAI_API_KEY}`,
-                        'Content-Type': 'multipart/form-data', // Đổi từ application/json thành multipart/form-data
+                        "Content-Type": "application/json",
                     },
                 }
             )
 
-            const generatedImageUrl = imageResponse.data?.data?.[0]?.b64_json || null
-            setGeneratedImageUrl(generatedImageUrl)
+            console.log("Webhook response:", response.data)
 
+            // Tuỳ cấu trúc dữ liệu webhook trả về
+            const imageBase64 = response.data.data
+
+            setGeneratedImageUrl(imageBase64)
         } catch (error: any) {
-            // Log chi tiết lỗi từ OpenAI để dễ debug nếu còn sót lỗi định dạng ảnh
-            if (error.response) {
-                console.error("OpenAI Error Details:", error.response.data)
-            } else {
-                console.error("Error creating image:", error)
-            }
+            console.error(
+                "Webhook error:",
+                error?.response?.data || error
+            )
         } finally {
             setLoading(false)
         }
     }
-
     const handleDownload = () => {
         if (!generatedImageUrl) return
 
