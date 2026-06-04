@@ -17,7 +17,7 @@ const CreateImageHouse = () => {
 
         try {
             const response = await axios.post(
-                "https://n8n-test.thegioinhasang.com/webhook/56d4bb69-10e4-4c4a-bc51-4ee7ac1bafec",
+                "https://n8n-test.thegioinhasang.com/webhook-test/56d4bb69-10e4-4c4a-bc51-4ee7ac1bafec",
                 {
                     url,
                 },
