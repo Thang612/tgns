@@ -14,7 +14,7 @@ import {
     SidebarMenuSubButton,
     SidebarMenuSubItem,
 } from "@/components/ui/sidebar"
-import { Building2, FileText, Home, ImageIcon, ScrollText, UserRound } from "lucide-react"
+import { Building2, FileText, Home, ImageIcon, ScrollText, UserRound, Sparkles } from "lucide-react"
 import Image from "next/image"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
@@ -55,6 +55,11 @@ const toolNav = [
         title: "Kịch bản",
         icon: FileText,
         items: [
+            {
+                title: "Tạo kịch bản",
+                href: "/taokichban",
+                icon: Sparkles,
+            },
             {
                 title: "Nhà lẻ",
                 href: "/kich-ban/nha-le",
