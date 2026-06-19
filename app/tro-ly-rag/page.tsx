@@ -11,8 +11,6 @@ import remarkGfm from 'remark-gfm';
 
 import SummaryModal from './components/SummaryModal';
 
-// Sử dụng apiKey từ môi trường Next.js
-const apiKey = process.env.NEXT_PUBLIC_GEMINI_API_KEY || "";
 const appId = 'gemini-rag-assistant';
 
 export default function App() {
@@ -62,43 +60,29 @@ export default function App() {
   }, []);
 
   const extractTextFromImage = async (base64Data: string, mimeType: string) => {
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
+    try {
+      console.log("Bắt đầu gửi ảnh lên Backend API (OCR)...");
+      const base64Content = base64Data.split(',')[1];
+      const response = await fetch('/api/gemini/ocr', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ base64Content, mimeType })
+      });
 
-    // Bỏ phần metadata "data:image/jpeg;base64,"
-    const base64Content = base64Data.split(',')[1];
+      if (!response.ok) {
+        throw new Error(`Lỗi nhận diện ảnh (OCR) từ Server: ${response.status}`);
+      }
 
-    const payload = {
-      contents: [{
-        parts: [
-          { text: "Trích xuất toàn bộ văn bản, thông tin, bảng biểu có trong bức ảnh này thành văn bản thuần túy. Trả về trực tiếp văn bản, không cần giải thích hay thêm bình luận gì cả." },
-          {
-            inline_data: {
-              mime_type: mimeType,
-              data: base64Content
-            }
-          }
-        ]
-      }]
-    };
-
-    console.log("Bắt đầu gửi ảnh lên Gemini để trích xuất văn bản (OCR)...");
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
-    });
-
-    if (!response.ok) {
-      throw new Error(`Lỗi nhận diện ảnh (OCR) từ Gemini: ${response.status}`);
+      const resData = await response.json();
+      if (resData.text) {
+        console.log("Đã trích xuất thành công văn bản từ ảnh.");
+        return resData.text;
+      }
+      throw new Error(resData.error || "Không tìm thấy văn bản nào trong ảnh.");
+    } catch (err) {
+      console.error("Lỗi extract text từ ảnh:", err);
+      return "";
     }
-
-    const data = await response.json();
-    const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
-    if (text) {
-      console.log("Đã trích xuất thành công văn bản từ ảnh.");
-      return text;
-    }
-    throw new Error("Không tìm thấy văn bản nào trong ảnh.");
   };
 
   const extractTextFromPdf = async (arrayBuffer: ArrayBuffer) => {
@@ -421,67 +405,17 @@ export default function App() {
 
       if (!fullText) throw new Error("Không tìm thấy nội dung văn bản của tài liệu này.");
 
-      const systemPrompt = `Bạn là CHUYÊN GIA PHÂN TÍCH TÀI LIỆU CẤP CAO.
-Nhiệm vụ của bạn là đọc toàn bộ văn bản và bóc tách nội dung một cách RẤT SÂU SẮC và CHI TIẾT NHẤT CÓ THỂ. TUYỆT ĐỐI KHÔNG làm sơ xài hay lướt qua các ý chính.
-
-Trả về kết quả bằng ĐÚNG định dạng JSON (chỉ JSON thuần, không có block markdown) bao gồm 2 trường chính:
-{
-  "htmlDocument": "...", 
-  "slides": [
-    {
-      "title": "...", 
-      "htmlContent": "..."
-    }
-  ]
-}
-
-Yêu cầu CỰC KỲ KHẮT KHE:
-1. htmlDocument (Bản phân tích chuyên sâu):
-- Bài phân tích phải thật DÀI, bao quát hết mọi ngóc ngách của văn bản.
-- Trình bày bằng HTML và BẮT BUỘC sử dụng trực tiếp các class của TailwindCSS (thuộc tính \`class="..."\`) để làm cho văn bản cực kỳ sinh động, đẹp mắt như một bài blog cao cấp.
-- Gợi ý định dạng Tailwind BẮT BUỘC phải áp dụng:
-  + <h1>: \`class="text-3xl font-black text-primary mb-6 pb-4 border-b-2 border-primary/20"\`
-  + <h2>: \`class="text-2xl font-bold text-foreground mt-10 mb-4 flex items-center gap-2"\` (có thể thêm icon emoji nếu hợp lý)
-  + <h3>: \`class="text-xl font-semibold text-primary/80 mt-6 mb-3"\`
-  + <p>: \`class="text-base text-foreground leading-relaxed mb-4"\`
-  + Highlight/Lưu ý/Trích dẫn: Bọc trong \`<div class="p-4 my-6 bg-primary/10 border-l-4 border-primary rounded-r-xl shadow-sm text-foreground">\`
-  + <ul>/<li>: \`class="list-disc pl-6 space-y-2 mb-6 text-foreground"\`, dùng \`<strong class="text-primary">\` để bôi đậm từ khóa.
-  + Bảng (nếu có): \`class="w-full text-left border-collapse rounded-lg overflow-hidden shadow-sm my-6"\`, th \`class="bg-primary/10 text-primary p-3 font-bold"\`, td \`class="p-3 border-b border-border"\`.
-
-2. slides (Trình chiếu):
-- Trích xuất toàn bộ tinh hoa của bài viết thành một bộ Slides (khoảng 5-10 slides).
-- "title": Tiêu đề cực kỳ ngắn gọn, hấp dẫn.
-- "htmlContent": KHÔNG ĐƯỢC viết đoạn văn dài thòng. Bạn BẮT BUỘC phải dùng <ul>, <li> để gạch đầu dòng các ý chính. Các ý phải súc tích, in đậm <strong> các keyword để người thuyết trình dễ đọc.`;
-
-      const payload = {
-        contents: [{ parts: [{ text: `Tài liệu: ${doc.title}\nNội dung gốc:\n${fullText}` }] }],
-        systemInstruction: { parts: [{ text: systemPrompt }] },
-        generationConfig: {
-          responseMimeType: "application/json"
-        }
-      };
-
-      const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
-      const response = await fetch(url, {
+      const response = await fetch('/api/gemini/summary', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
+        body: JSON.stringify({ docTitle: doc.title, fullText })
       });
 
-      if (!response.ok) throw new Error("Lỗi khi gọi API Tóm tắt");
-
-      const resData = await response.json();
-      const rawText = resData.candidates?.[0]?.content?.parts?.[0]?.text || "{}";
-
-      // Loại bỏ các ký tự thừa (markdown block, khoảng trắng...) chỉ lấy đoạn từ { đến }
-      let cleanJsonText = rawText;
-      const firstBrace = cleanJsonText.indexOf('{');
-      const lastBrace = cleanJsonText.lastIndexOf('}');
-      if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
-        cleanJsonText = cleanJsonText.substring(firstBrace, lastBrace + 1);
+      if (!response.ok) {
+        throw new Error(`Lỗi khi gọi API Tóm tắt từ Server: ${response.status}`);
       }
 
-      const parsedData = JSON.parse(cleanJsonText);
+      const parsedData = await response.json();
 
       // Lưu lại bản tóm tắt vào trong document
       setDocuments(prev => prev.map(d =>
@@ -501,28 +435,22 @@ Yêu cầu CỰC KỲ KHẮT KHE:
     }
   };
 
-  const callGeminiAPI = async (promptText: string, retries = 5, delay = 1000): Promise<string> => {
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
-
-    const payload = {
-      contents: [{ parts: [{ text: promptText }] }],
-      systemInstruction: {
-        parts: [{
-          text: `Bạn là "Trợ lý AI hỗ trợ phân tích tài liệu và hiểu tài liệu nhanh chóng" thông minh, phân tích sâu và cực kỳ thân thiện.
+  const callGeminiAPI = async (promptText: string, history: any[] = [], retries = 3, delay = 1000): Promise<string> => {
+    const systemPrompt = `Bạn là "Trợ lý AI hỗ trợ phân tích tài liệu và hiểu tài liệu nhanh chóng" thông minh, phân tích sâu và cực kỳ thân thiện.
 Nhiệm vụ của bạn là giải thích, phân tích và trả lời câu hỏi dựa vào phần "Ngữ cảnh được cung cấp từ tài liệu".
 - Hãy trả lời một cách tự nhiên, trực quan, chuyên sâu, đi thẳng vào câu hỏi.
 - Trích dẫn cụ thể các nội dung có trong tài liệu để tăng tính thuyết phục.
-- Nếu thông tin không có sẵn trong tài liệu, hãy thành thật báo lại cho người dùng biết, sau đó bạn có thể phân tích bổ sung dựa trên tri thức học máy của bạn một cách khách quan nhất.`
-        }]
-      }
-    };
+- Nếu thông tin không có sẵn trong tài liệu, hãy thành thật báo lại cho người dùng biết, sau đó bạn có thể phân tích bổ sung dựa trên tri thức học máy của bạn một cách khách quan nhất.`;
+
+    // Lọc lịch sử tin nhắn sạch để gửi kèm cho AI có trí nhớ (bỏ lỗi, bỏ tin hệ thống)
+    const cleanHistory = history.filter(m => !m.isError && m.role !== 'system').slice(-6);
 
     for (let i = 0; i < retries; i++) {
       try {
-        const response = await fetch(url, {
+        const response = await fetch('/api/gemini/chat', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload)
+          body: JSON.stringify({ history: cleanHistory, prompt: promptText, systemPrompt })
         });
 
         if (!response.ok) {
@@ -530,9 +458,8 @@ Nhiệm vụ của bạn là giải thích, phân tích và trả lời câu h�
         }
 
         const data = await response.json();
-        const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
-        if (text) return text;
-        throw new Error("Không thể trích xuất nội dung phản hồi từ Gemini API.");
+        if (data.text) return data.text;
+        throw new Error(data.error || "Không thể trích xuất nội dung phản hồi từ Server.");
       } catch (err) {
         if (i === retries - 1) throw err;
         await new Promise(res => setTimeout(res, delay * Math.pow(2, i)));
@@ -588,7 +515,8 @@ Nhiệm vụ của bạn là giải thích, phân tích và trả lời câu h�
         finalPrompt = `Câu hỏi của người dùng: ${userMessageText}\n\n(Lưu ý từ hệ thống: Hiện tại bộ não tri thức RAG của bạn đang trống hoặc không có thông tin khớp tốt với câu hỏi này. Hãy trả lời thân thiện dựa trên hiểu biết chung của bạn và khuyên người dùng nên kéo thả tài liệu vào khung chat để phân tích chính xác nhất).`;
       }
 
-      const botResponseText = await callGeminiAPI(finalPrompt);
+      // Đã cập nhật để truyền lịch sử vào API (Giúp AI nhớ câu hỏi cũ)
+      const botResponseText = await callGeminiAPI(finalPrompt, currentSession.messages);
 
       const botMessage = {
         id: `msg-${Date.now()}-bot`,
