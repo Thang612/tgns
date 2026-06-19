@@ -4,6 +4,7 @@ import "./globals.css";
 import { cn } from "@/lib/utils";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar"
 import { AppSidebar } from "@/components/layout/app-sidebar"
+import { Toaster } from "sonner";
 
 const playfairDisplayHeading = Playfair_Display({ subsets: ['latin'], variable: '--font-heading' });
 
@@ -45,6 +46,7 @@ export default function RootLayout({
             </div>
           </main>
         </SidebarProvider>
+        <Toaster />
       </body>
     </html>
   );
